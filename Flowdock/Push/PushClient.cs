@@ -55,6 +55,46 @@
                 await httpClient.SendAsync(request);
             }
         }
+
+        public Task PushToChatAsync(string content, string externalUserName, string tags = null)
+        {
+            return PushToChatAsync(new ChatInputMessage(content, externalUserName) {Tags = tags});
+        }
+
+        public async Task PushToChatAsync(ChatInputMessage message)
+        {
+            if (message == null) throw new ArgumentNullException("message");
+
+            var httpClientHandler = new HttpClientHandler();
+
+            var httpClient = new HttpClient(httpClientHandler) { BaseAddress = ChatUrl };
+
+            foreach (var request in _apiTokens.Select(token => new HttpRequestMessage(HttpMethod.Post,
+                                                                                      new Uri(token, UriKind.Relative))))
+            {
+                request.Content = new ObjectContent<ChatInputMessage>(message, new CustomJsonMediaTypeFormatter());
+                await httpClient.SendAsync(request);
+            }
+        }
+    }
+
+    public class ChatInputMessage
+    {
+        // Required properties
+        public string Content { get; set; }
+        public string ExternalUserName { get; set; }
+
+        // Optional properties
+        public string Tags { get; set; }
+
+        public ChatInputMessage(string content, string externalUserName)
+        {
+            if (content == null) throw new ArgumentNullException("content");
+            if (externalUserName == null) throw new ArgumentNullException("externalUserName");
+
+            Content = content;
+            ExternalUserName = externalUserName;
+        }
     }
 
     internal class CustomJsonMediaTypeFormatter : JsonMediaTypeFormatter
@@ -63,38 +103,6 @@
         {
             SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
             SerializerSettings.ContractResolver = new CamelCaseToLowerCasePlusUnderscoresResolver();
-        }
-    }
-
-    class LoggingHandler : DelegatingHandler
-    {
-        StreamWriter _writer;
-
-        public LoggingHandler(Stream stream)
-        {
-            _writer = new StreamWriter(stream);
-        }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
-        {
-            var response = await base.SendAsync(request, cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _writer.WriteLine("{0}\t{1}\t{2}", request.RequestUri,
-                    (int)response.StatusCode, response.Headers.Date);
-            }
-            return response;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _writer.Dispose();
-            }
-            base.Dispose(disposing);
         }
     }
 

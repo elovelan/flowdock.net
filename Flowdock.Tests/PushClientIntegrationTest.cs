@@ -8,7 +8,7 @@
 
     public class PushClientIntegrationTest
     {
-        private const string ApiToken = "API-TOKEN-GOES-HERE";
+        private const string ApiToken = "API-KEY-GOES-HERE";
 
         [Fact]
         public void Push_ten_messages_to_a_team_room()
@@ -21,6 +21,20 @@
                 pushClient.PushToTeamAsync("PushClientTest", "Foo@Bar.org", "Tester", "Test from integration test. #" + i);
             }
             
+            Task.WaitAll(tasks.ToArray());
+        }
+
+        [Fact]
+        public void Push_three_messages_to_a_chat()
+        {
+            var pushClient = new PushClient(ApiToken);
+            var tasks = new List<Task>();
+
+            for (var i = 0; i < 10; i++)
+            {
+                pushClient.PushToChatAsync("Hello from integration test #" + i, "int_test");
+            }
+
             Task.WaitAll(tasks.ToArray());
         }
     }
