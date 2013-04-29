@@ -45,7 +45,6 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FlowdockClient.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Push\PushClient.cs" />
   </ItemGroup>
