@@ -30,3 +30,4 @@ $tf*/
 packages/
 *ncrunchsolution*
 !.nuget/NuGet.exe
+ApiTokens.config

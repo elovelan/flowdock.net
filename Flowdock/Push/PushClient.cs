@@ -1,15 +1,12 @@
 ﻿namespace Flowdock.Push
 {
     using System;
-    using System.Diagnostics;
-    using System.IO;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Net.Http;
     using System.Net.Http.Formatting;
-    using System.Text.RegularExpressions;
     using System.Threading.Tasks;
     using Newtonsoft.Json;
-    using Newtonsoft.Json.Serialization;
 
     public class PushClient
     {
@@ -44,16 +41,9 @@
         {
             if (message == null) throw new ArgumentNullException("message");
 
-            var httpClientHandler = new HttpClientHandler();
+            var requestMessages = CreateRequestMessagesForAllApiTokens(message);
 
-            var httpClient = new HttpClient(httpClientHandler) { BaseAddress = TeamInboxUrl };
-
-            foreach (var request in _apiTokens.Select(token => new HttpRequestMessage(HttpMethod.Post,
-                                                                                      new Uri(token, UriKind.Relative))))
-            {
-                request.Content = new ObjectContent<TeamInputMessage>(message, new CustomJsonMediaTypeFormatter());
-                await httpClient.SendAsync(request);
-            }
+            await Dispatch(requestMessages, TeamInboxUrl);
         }
 
         public Task PushToChatAsync(string content, string externalUserName, string tags = null)
@@ -65,81 +55,39 @@
         {
             if (message == null) throw new ArgumentNullException("message");
 
-            var httpClientHandler = new HttpClientHandler();
+            var requestMessages = CreateRequestMessagesForAllApiTokens(message);
 
-            var httpClient = new HttpClient(httpClientHandler) { BaseAddress = ChatUrl };
+            await Dispatch(requestMessages, ChatUrl);
+        }
 
-            foreach (var request in _apiTokens.Select(token => new HttpRequestMessage(HttpMethod.Post,
-                                                                                      new Uri(token, UriKind.Relative))))
+        private async Task Dispatch(IEnumerable<HttpRequestMessage> requestMessages, Uri baseAddress)
+        {
+            var httpClient = new HttpClient() { BaseAddress = baseAddress };
+            foreach (var message in requestMessages)
             {
-                request.Content = new ObjectContent<ChatInputMessage>(message, new CustomJsonMediaTypeFormatter());
-                await httpClient.SendAsync(request);
+                // TODO aggregate response messages - return/log?
+                await httpClient.SendAsync(message);
             }
         }
-    }
 
-    public class ChatInputMessage
-    {
-        // Required properties
-        public string Content { get; set; }
-        public string ExternalUserName { get; set; }
-
-        // Optional properties
-        public string Tags { get; set; }
-
-        public ChatInputMessage(string content, string externalUserName)
+        private IEnumerable<HttpRequestMessage> CreateRequestMessagesForAllApiTokens<T>(T content)
         {
-            if (content == null) throw new ArgumentNullException("content");
-            if (externalUserName == null) throw new ArgumentNullException("externalUserName");
-
-            Content = content;
-            ExternalUserName = externalUserName;
+            return _apiTokens.Select(token => new HttpRequestMessage(HttpMethod.Post, new Uri(token, UriKind.Relative))
+                                                  {
+                                                      Content = new ObjectContent<T>(content, CreateJsonMediaTypeFormatter())
+                                                  });
         }
-    }
 
-    internal class CustomJsonMediaTypeFormatter : JsonMediaTypeFormatter
-    {
-        public CustomJsonMediaTypeFormatter()
+        private static JsonMediaTypeFormatter CreateJsonMediaTypeFormatter()
         {
-            SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
-            SerializerSettings.ContractResolver = new CamelCaseToLowerCasePlusUnderscoresResolver();
-        }
-    }
-
-    public class TeamInputMessage
-    {
-        // Required properties
-        public string Source { get; private set; }
-        public string FromAddress { get; private set; }
-        public string Subject { get; private set; }
-        public string Content { get; private set; }
-
-        // Optional properties
-        public string FromName { get; set; }
-        public string ReplyTo { get; set; }
-        public string Project { get; set; }
-        public string Tags { get; set; }
-        public string Links { get; set; }
-
-        public TeamInputMessage(string source, string fromAddress, string subject, string content)
-        {
-            if (source == null) throw new ArgumentNullException("source");
-            if (fromAddress == null) throw new ArgumentNullException("fromAddress");
-            if (subject == null) throw new ArgumentNullException("subject");
-            if (content == null) throw new ArgumentNullException("content");
-
-            Source = source;
-            FromAddress = fromAddress;
-            Subject = subject;
-            Content = content;
-        }
-    }
-
-    public class CamelCaseToLowerCasePlusUnderscoresResolver : DefaultContractResolver
-    {
-        protected override string ResolvePropertyName(string propertyName)
-        {
-            return Regex.Replace(propertyName, @"(\p{Ll})(\p{Lu})", "$1_$2", RegexOptions.Compiled).ToLower();
+            return new JsonMediaTypeFormatter
+                       {
+                           SerializerSettings =  new JsonSerializerSettings
+                                                     {
+                                                         NullValueHandling = NullValueHandling.Ignore,
+                                                         ContractResolver = new CamelCaseToLowerCasePlusUnderscoresResolver()
+                                                     }
+                       };
         }
     }
 }
